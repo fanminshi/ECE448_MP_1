@@ -61,6 +61,11 @@ def create_word_maps_uni(X, y, max_size=None):
             neg_vocab.update(X[i])
     return pos_vocab, neg_vocab
 
+def toBigram(email):
+    bigram = []
+    for i in range(1, len(email)):
+        bigram.append(email[i - 1] + ' ' + email[i])
+    return bigram
 
 def create_word_maps_bi(X, y, max_size=None):
     """
@@ -79,17 +84,47 @@ def create_word_maps_bi(X, y, max_size=None):
         values: number of times the word pair appears 
     """
     #print(len(X),'X')
-    pos_vocab = {}
-    neg_vocab = {}
-    ##TODO:
-    raise RuntimeError("Replace this line with your code!")
-    return dict(pos_vocab), dict(neg_vocab)
+    pos_vocab = Counter()
+    neg_vocab = Counter()
+    for i in range(len(X)):
+        email = X[i]
+        bi = toBigram(email)
+        if y[i] == 1:
+            pos_vocab.update(bi)
+        else:
+            neg_vocab.update(bi)
+    p, n = create_word_maps_uni(X, y)
+    pos_vocab.update(p)
+    neg_vocab.update(n)
+    return pos_vocab, neg_vocab
 
 
 # Keep this in the provided template
 def print_paramter_vals(laplace,pos_prior):
     print(f"Unigram Laplace {laplace}")
     print(f"Positive prior {pos_prior}")
+
+def naiveBayes_estimate(pos_vocab, neg_vocab, pos_sum, neg_sum, email, laplace=0.001, pos_prior=0.8):
+    no_word_pos = laplace / (pos_sum + laplace*(1 + len(pos_vocab)))
+    no_word_neg = laplace / (neg_sum + laplace*(1 + len(neg_vocab)))
+    def estimate(words):
+        p_pos = np.log(pos_prior)
+        p_neg = np.log(1 - pos_prior)
+        for word in words:
+            if word in pos_vocab:
+                lp = (laplace + pos_vocab[word]) / (pos_sum + laplace*(1 + len(pos_vocab)))
+                p_pos += np.log(lp)
+            else:
+                p_pos += np.log(no_word_pos)
+
+            if word in neg_vocab:
+                lp = (laplace + neg_vocab[word]) / (neg_sum + laplace*(1 + len(neg_vocab)))
+                p_neg += np.log(lp)
+            else: 
+                p_neg += np.log(no_word_neg)
+        
+        return p_pos, p_neg
+    return estimate(email)
 
 
 """
@@ -115,33 +150,13 @@ def naiveBayes(train_set, train_labels, dev_set, laplace=0.001, pos_prior=0.8, s
     # Keep this in the provided template
     print_paramter_vals(laplace,pos_prior)
     pos_vocab, neg_vocab = create_word_maps_uni(train_set, train_labels)
-
     pos_sum = sum(pos_vocab.values())
     neg_sum = sum(neg_vocab.values())
-
-    no_word_pos = laplace / (pos_sum + laplace*(1 + len(pos_vocab)))
-    no_word_neg = laplace / (neg_sum + laplace*(1 + len(neg_vocab)))
-    def estimate(words):
-        p_pos = np.log(pos_prior)
-        p_neg = np.log(1 - pos_prior)
-        for word in words:
-            if word in pos_vocab:
-                lp = (laplace + pos_vocab[word]) / (pos_sum + laplace*(1 + len(pos_vocab)))
-                p_pos += np.log(lp)
-            else:
-                p_pos += np.log(no_word_pos)
-
-            if word in neg_vocab:
-                lp = (laplace + neg_vocab[word]) / (neg_sum + laplace*(1 + len(neg_vocab)))
-                p_neg += np.log(lp)
-            else: 
-                p_neg += np.log(no_word_neg)
-        
-        return (p_pos > p_neg)
-
+    
     dev_set_labels = []   
     for email in dev_set:
-        if estimate(email):
+        p_pos, p_neg = naiveBayes_estimate(pos_vocab, neg_vocab, pos_sum, neg_sum, email, laplace, pos_prior)
+        if p_pos > p_neg:
             dev_set_labels.append(1)
         else:
             dev_set_labels.append(0)
@@ -154,7 +169,6 @@ def print_paramter_vals_bigram(unigram_laplace,bigram_laplace,bigram_lambda,pos_
     print(f"Bigram Laplace {bigram_laplace}")
     print(f"Bigram Lambda {bigram_lambda}")
     print(f"Positive prior {pos_prior}")
-
 
 def bigramBayes(train_set, train_labels, dev_set, unigram_laplace=0.001, bigram_laplace=0.005, bigram_lambda=0.5,pos_prior=0.8,silently=False):
     '''
@@ -176,7 +190,24 @@ def bigramBayes(train_set, train_labels, dev_set, unigram_laplace=0.001, bigram_
     print_paramter_vals_bigram(unigram_laplace,bigram_laplace,bigram_lambda,pos_prior)
 
     max_vocab_size = None
+    pos_vocab_uni, neg_vocab_uni = create_word_maps_uni(train_set, train_labels)
+    pos_sum_uni = sum(pos_vocab_uni.values())
+    neg_sum_uni = sum(neg_vocab_uni.values())
 
-    raise RuntimeError("Replace this line with your code!")
+    pos_vocab_bi, neg_vocab_bi = create_word_maps_bi(train_set, train_labels)
+    pos_sum_bi = sum(pos_vocab_bi.values())
+    neg_sum_bi = sum(neg_vocab_bi.values())
 
-    return []
+    dev_set_labels = []   
+    for email in dev_set:
+        p_pos_uni, p_neg_uni = naiveBayes_estimate(pos_vocab_uni, neg_vocab_uni, pos_sum_uni, neg_sum_uni, email, unigram_laplace, pos_prior)
+        p_pos_bi, p_neg_bi = naiveBayes_estimate(pos_vocab_bi, neg_vocab_bi, pos_sum_bi, neg_sum_bi, toBigram(email), bigram_laplace, pos_prior)
+        p_pos_mix = p_pos_bi * bigram_lambda + p_pos_uni * (1 - bigram_lambda)
+        p_neg_mix = p_neg_bi * bigram_lambda + p_neg_uni * (1 - bigram_lambda)
+        if p_pos_mix > p_neg_mix: 
+            dev_set_labels.append(1)
+        else:
+            dev_set_labels.append(0) 
+
+    return dev_set_labels
+
