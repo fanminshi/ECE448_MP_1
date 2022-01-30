@@ -118,13 +118,7 @@ def naiveBayes(train_set, train_labels, dev_set, laplace=0.001, pos_prior=0.8, s
 
     pos_sum = sum(pos_vocab.values())
     neg_sum = sum(neg_vocab.values())
-    pos_prior = pos_sum / (pos_sum + neg_sum)
 
-    # for key, value in pos_vocab.items():
-    #     p_w_given_pos[key] = (laplace + value) / (pos_sum + laplace*(1 + len(pos_vocab)))
-    # for key, value in neg_vocab.items():
-    #     p_w_given_neg[key] = (laplace + value) / (neg_sum + laplace*(1 + len(neg_vocab)))
-    laplace = 1
     no_word_pos = laplace / (pos_sum + laplace*(1 + len(pos_vocab)))
     no_word_neg = laplace / (neg_sum + laplace*(1 + len(neg_vocab)))
     def estimate(words):
@@ -145,18 +139,12 @@ def naiveBayes(train_set, train_labels, dev_set, laplace=0.001, pos_prior=0.8, s
         
         return (p_pos > p_neg)
 
-    dev_set_labels = [] 
-    for email in dev_set:
-        for w in email:
-            if w not in pos_vocab or w not in neg_vocab:
-                laplace += 1
-
-    print("laplace", laplace)     
+    dev_set_labels = []   
     for email in dev_set:
         if estimate(email):
-            dev_set_labels.insert(0, 1)
+            dev_set_labels.append(1)
         else:
-            dev_set_labels.insert(0, 0) 
+            dev_set_labels.append(0)
 
     return dev_set_labels
 
