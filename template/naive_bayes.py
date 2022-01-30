@@ -53,8 +53,9 @@ def create_word_maps_uni(X, y, max_size=None):
     #print(len(X),'X')
     pos_vocab = Counter()
     neg_vocab = Counter()
+   
     for i in range(len(X)):
-        if y[i] == 1:
+        if y[i] > 0:
             pos_vocab.update(X[i])
         else:
             neg_vocab.update(X[i])
@@ -115,36 +116,42 @@ def naiveBayes(train_set, train_labels, dev_set, laplace=0.001, pos_prior=0.8, s
     print_paramter_vals(laplace,pos_prior)
     pos_vocab, neg_vocab = create_word_maps_uni(train_set, train_labels)
 
-    p_w_given_pos = {}
-    p_w_given_neg = {}
-
     pos_sum = sum(pos_vocab.values())
     neg_sum = sum(neg_vocab.values())
+    pos_prior = pos_sum / (pos_sum + neg_sum)
 
-    for key, value in pos_vocab.items():
-        p_w_given_pos[key] = value / pos_sum
-    for key, value in neg_vocab.items():
-        p_w_given_neg[key] = value / neg_sum
-
-    laplase_pos = laplace / (pos_sum + laplace*(1 + len(pos_vocab)))
-    laplase_neg = laplace / (neg_sum + laplace*(1 + len(neg_vocab)))
+    # for key, value in pos_vocab.items():
+    #     p_w_given_pos[key] = (laplace + value) / (pos_sum + laplace*(1 + len(pos_vocab)))
+    # for key, value in neg_vocab.items():
+    #     p_w_given_neg[key] = (laplace + value) / (neg_sum + laplace*(1 + len(neg_vocab)))
+    laplace = 1
+    no_word_pos = laplace / (pos_sum + laplace*(1 + len(pos_vocab)))
+    no_word_neg = laplace / (neg_sum + laplace*(1 + len(neg_vocab)))
     def estimate(words):
         p_pos = np.log(pos_prior)
         p_neg = np.log(1 - pos_prior)
         for word in words:
             if word in pos_vocab:
-                p_pos += np.log(p_w_given_pos[word])
+                lp = (laplace + pos_vocab[word]) / (pos_sum + laplace*(1 + len(pos_vocab)))
+                p_pos += np.log(lp)
             else:
-                p_pos += np.log(laplase_pos)
+                p_pos += np.log(no_word_pos)
 
             if word in neg_vocab:
-                p_neg += np.log(p_w_given_neg[word])
+                lp = (laplace + neg_vocab[word]) / (neg_sum + laplace*(1 + len(neg_vocab)))
+                p_neg += np.log(lp)
             else: 
-                p_neg += np.log(laplase_neg)
+                p_neg += np.log(no_word_neg)
         
-        return (p_pos - p_neg < 0)
+        return (p_pos > p_neg)
 
-    dev_set_labels = []          
+    dev_set_labels = [] 
+    for email in dev_set:
+        for w in email:
+            if w not in pos_vocab or w not in neg_vocab:
+                laplace += 1
+
+    print("laplace", laplace)     
     for email in dev_set:
         if estimate(email):
             dev_set_labels.insert(0, 1)
